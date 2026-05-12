@@ -1,0 +1,53 @@
+---
+# Multi-domain overlay for CATC: BR10 border + control plane node, the
+# BGP IP transit pointing at the SD-WAN overlay, and per-VN L3 handoffs.
+#
+# Handoff plan:
+#   BR10 Gi1/0/3 trunk to cEdge-02 Gi3:
+#     VLAN 3030  Campus  10.100.30.1/30  EBGP peer 10.100.30.2  remote-as 65200
+#     VLAN 3040  Guest   10.100.40.1/30  EBGP peer 10.100.40.2  remote-as 65200
+#   Fabric local AS: 65001 (existing); transit AS: 65200 (SD-WAN overlay).
+catalyst_center:
+  inventory:
+    devices:
+      - name: BR10
+        fqdn_name: BR10.cisco.eu
+        device_ip: 198.18.130.10
+        pid: C9KV-UADP-8P
+        state: INIT
+        device_role: BORDER ROUTER
+        site: Global/USA/Nevada/Las Vegas/Bld A
+        fabric_site: Global/USA/Nevada/Las Vegas
+        fabric_roles:
+          - BORDER_NODE
+          - CONTROL_PLANE_NODE
+
+  fabric:
+    transits:
+      - name: BGP-SDWAN
+        type: IP_BASED_TRANSIT
+        routing_protocol_name: BGP
+        autonomous_system_number: 65200
+
+    border_devices:
+      - name: BR10
+        border_types:
+          - LAYER_3
+        default_exit: true
+        import_external_routes: false
+        local_autonomous_system_number: 65001
+        l3_handoffs:
+          - name: BGP-SDWAN
+            interfaces:
+              - name: GigabitEthernet1/0/3
+                virtual_networks:
+                  - name: Campus
+                    vlan: 3030
+                    local_ip_address: 10.100.30.1/30
+                    peer_ip_address: 10.100.30.2/30
+                    tcp_mss_adjustment: 1350
+                  - name: Guest
+                    vlan: 3040
+                    local_ip_address: 10.100.40.1/30
+                    peer_ip_address: 10.100.40.2/30
+                    tcp_mss_adjustment: 1350

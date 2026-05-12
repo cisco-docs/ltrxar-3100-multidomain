@@ -1,0 +1,32 @@
+---
+# Multi-domain overlay for ACI: register border leaf 403 and bind its eth1/1
+# to the 10G-ROUTED policy group (which is owned by aci/data/access_policies.nac.yaml).
+#
+# This is the ONLY thing multi-domain/aci/ owns under Option B. The full PROD
+# and SVCS tenants — including L3OUT-SDWAN-PROD, L3OUT-SDWAN-SVCS, external
+# EPGs, contracts, and BD<->L3Out associations — are owned by aci/data/.
+#
+# Both tenants' L3Outs reference node 403 + eth1/1 as soft references. APIC
+# raises faults on l3extRsNodeL3OutAtt and l3extRsPathL3OutAtt while this
+# overlay has not yet been applied; the faults clear automatically once node
+# 403 is registered and eth1/1 is bound to 10G-ROUTED below.
+apic:
+  node_policies:
+    nodes:
+      - id: 403
+        pod: 1
+        role: leaf
+        serial_number: TEP-1-403
+        name: LEAF403
+        oob_address: 10.51.77.96/24
+        oob_gateway: 10.51.77.254
+        update_group: MG1
+        access_policy_group: ALL_LEAFS
+
+  interface_policies:
+    nodes:
+      - id: 403
+        interfaces:
+          - port: 1
+            description: HANDOFF to cEdge-01 Gi3 (SD-WAN, trunk for PROD VLAN 3010 and SVCS VLAN 3020)
+            policy_group: 10G-ROUTED

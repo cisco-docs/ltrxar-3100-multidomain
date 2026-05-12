@@ -1,0 +1,81 @@
+---
+# Multi-domain handoff feature templates only.
+#
+# Base feature templates (VPN0, VPN512, system, AAA, banner, BFD, NTP, SNMP,
+# OMP, logging, security, FT-REMOTE-VPN30-CORP, FT-REMOTE-VPN40-GUEST,
+# FT-ETH3-VPN30, FT-ETH4-VPN40, etc.) are owned by sdwan/. The hub device
+# template DT-HUB-C8000V-MULTIDOMAIN composes these with the new templates
+# below to deliver EBGP handoff over dot1q sub-interfaces on Gi3.
+sdwan:
+  edge_feature_templates:
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Dot1q sub-interface ethernet feature templates (Gi3.<vlan>)
+    # Used by cEdge-01 (Site 2, ACI handoff) and cEdge-02 (Site 3, CATC handoff)
+    # via device_variables on each site. The interface_name_variable carries
+    # the encoded sub-interface (e.g. "GigabitEthernet3.3010"); IOS-XE infers
+    # dot1q encap from the dotted name.
+    # ─────────────────────────────────────────────────────────────────────
+    ethernet_interface_templates:
+      - name: FT-ETH3-SUBIF-VPN30-HANDOFF
+        description: Dot1q sub-interface on Gi3 for VPN 30 EBGP handoff
+        interface_name_variable: handoff_vpn30_subif_if_name
+        interface_description_variable: handoff_vpn30_subif_desc
+        ipv4_address_variable: handoff_vpn30_subif_ipv4
+        shutdown_variable: handoff_vpn30_subif_shutdown
+        tcp_mss_variable: handoff_tcp_mss
+
+      - name: FT-ETH3-SUBIF-VPN40-HANDOFF
+        description: Dot1q sub-interface on Gi3 for VPN 40 EBGP handoff
+        interface_name_variable: handoff_vpn40_subif_if_name
+        interface_description_variable: handoff_vpn40_subif_desc
+        ipv4_address_variable: handoff_vpn40_subif_ipv4
+        shutdown_variable: handoff_vpn40_subif_shutdown
+        tcp_mss_variable: handoff_tcp_mss
+
+    # ─────────────────────────────────────────────────────────────────────
+    # BGP feature templates, one per service VPN.
+    # AS 65200 (SD-WAN overlay AS). Neighbors and remote-AS are device
+    # variables so cEdge-01 (peers AS 65100 / ACI) and cEdge-02 (peers AS
+    # 65001 / CATC) reuse the same templates with different values.
+    # ─────────────────────────────────────────────────────────────────────
+    bgp_templates:
+      - name: FT-BGP-VPN30-HANDOFF
+        description: EBGP for VPN 30 handoff (AS 65200, OMP<->BGP redistribution)
+        as_number: 65200
+        propagate_as_path: true
+        propagate_community: true
+        router_id_variable: handoff_vpn30_bgp_router_id
+        ipv4_address_family:
+          maximum_paths: 4
+          redistributes:
+            - protocol: omp
+            - protocol: connected
+          neighbors:
+            - address_variable: handoff_vpn30_bgp_peer
+              remote_as_variable: handoff_vpn30_bgp_remote_as
+              description: Handoff EBGP peer (ACI border leaf or CATC border)
+              send_community: true
+              send_extended_community: true
+              address_families:
+                - family_type: ipv4-unicast
+
+      - name: FT-BGP-VPN40-HANDOFF
+        description: EBGP for VPN 40 handoff (AS 65200, OMP<->BGP redistribution)
+        as_number: 65200
+        propagate_as_path: true
+        propagate_community: true
+        router_id_variable: handoff_vpn40_bgp_router_id
+        ipv4_address_family:
+          maximum_paths: 4
+          redistributes:
+            - protocol: omp
+            - protocol: connected
+          neighbors:
+            - address_variable: handoff_vpn40_bgp_peer
+              remote_as_variable: handoff_vpn40_bgp_remote_as
+              description: Handoff EBGP peer (ACI border leaf or CATC border)
+              send_community: true
+              send_extended_community: true
+              address_families:
+                - family_type: ipv4-unicast

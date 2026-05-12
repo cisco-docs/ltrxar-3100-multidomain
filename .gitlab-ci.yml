@@ -1,0 +1,47 @@
+---
+# LTRXAR-3100 Multi-Domain Orchestrator Pipeline
+#
+# Triggers the three per-domain child pipelines in the order:
+#   1. deploy-aci    (ACI border leaf, L3Outs, tenant overlay)
+#   2. deploy-catc   (CATC BR10, IP transit, per-VN L3 handoffs)
+#   3. deploy-sdwan  (SD-WAN cEdge-01 hub + cEdge-02, dot1q sub-int + BGP)
+#
+# SD-WAN is applied last because cEdges peer with both sides; deploying SD-WAN
+# after ACI and CATC are programmed means all four EBGP sessions converge in
+# the final stage with no half-up state to debug.
+#
+# strategy: depend  -> parent pipeline waits for each child pipeline to finish
+#                      and inherits its exit status. A failure in any child
+#                      fails the orchestrator (preventing downstream stages).
+
+stages:
+  - deploy-aci
+  - deploy-catc
+  - deploy-sdwan
+
+deploy_aci:
+  stage: deploy-aci
+  trigger:
+    include: aci/.gitlab-ci.yml
+    strategy: depend
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: always
+
+deploy_catc:
+  stage: deploy-catc
+  trigger:
+    include: catc/.gitlab-ci.yml
+    strategy: depend
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: always
+
+deploy_sdwan:
+  stage: deploy-sdwan
+  trigger:
+    include: sdwan/.gitlab-ci.yml
+    strategy: depend
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: always
