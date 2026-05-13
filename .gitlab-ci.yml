@@ -1,32 +1,30 @@
 ---
 # LTRXAR-3100 Multi-Domain Orchestrator Pipeline
 #
-# Triggers the three per-domain child pipelines in the order:
-#   1. deploy-aci    (ACI border leaf, L3Outs, tenant overlay)
-#   2. deploy-catc   (CATC BR10, IP transit, per-VN L3 handoffs)
-#   3. deploy-sdwan  (SD-WAN cEdge-01 hub + cEdge-02, dot1q sub-int + BGP)
+# Triggers the per-domain child pipelines in the order:
+#   1. deploy-catc   (CATC fabrics, IP transit, BORDER + FIAB L3 handoffs)
+#   2. deploy-sdwan  (SD-WAN C-EDGE-01 + C-EDGE-02 sites with CTS-aware handoff)
 #
-# SD-WAN is applied last because cEdges peer with both sides; deploying SD-WAN
-# after ACI and CATC are programmed means all four EBGP sessions converge in
-# the final stage with no half-up state to debug.
+# Order rationale:
+#   - CATC first  → fabrics + handoff configs come up; BGP advertises subnets
+#   - SDWAN next  → cEdge handoff sub-ints + CTS interface mode TRUSTED
+#
+# ACI and ISE are deployed independently via their own submodule pipelines:
+#   - ACI: under the simulator constraint (LEAF101 + LEAF102 only), there
+#     is no separate border-leaf to register; multi-domain/aci/ was removed
+#     and L3Outs are owned entirely by the parent aci/ submodule.
+#   - ISE: SGT/SGACL/matrix/IP-SGT/NAD config lives in the parent ise/
+#     submodule and is applied via that pipeline. Allow ~60–90s after the
+#     ISE apply for CTS PAC provisioning + matrix download to the fabric
+#     edges before validating Beat 3 (the headline drop).
 #
 # strategy: depend  -> parent pipeline waits for each child pipeline to finish
 #                      and inherits its exit status. A failure in any child
 #                      fails the orchestrator (preventing downstream stages).
 
 stages:
-  - deploy-aci
   - deploy-catc
   - deploy-sdwan
-
-deploy_aci:
-  stage: deploy-aci
-  trigger:
-    include: aci/.gitlab-ci.yml
-    strategy: depend
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
-      when: always
 
 deploy_catc:
   stage: deploy-catc

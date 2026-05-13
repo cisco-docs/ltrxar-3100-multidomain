@@ -1,43 +1,51 @@
 ---
-# Multi-domain handoff feature templates only.
+# Multi-domain handoff feature templates.
 #
-# Base feature templates (VPN0, VPN512, system, AAA, banner, BFD, NTP, SNMP,
-# OMP, logging, security, FT-REMOTE-VPN30-CORP, FT-REMOTE-VPN40-GUEST,
-# FT-ETH3-VPN30, FT-ETH4-VPN40, etc.) are owned by sdwan/. The hub device
-# template DT-HUB-C8000V-MULTIDOMAIN composes these with the new templates
-# below to deliver EBGP handoff over dot1q sub-interfaces on Gi3.
+# Base feature templates (VPN0, VPN30, VPN40, VPN512, system, AAA, banner,
+# BFD, NTP, SNMP, OMP, logging, security, TLOC ethernet) are owned by sdwan/.
+# The TLOC tunnels in sdwan/ already have propagate_sgt: true so the SGT
+# travels with the packet across the IPsec overlay between cEdges.
+#
+# This file adds:
+#   - the dot1q sub-interface template for the LAN handoff (Gi3.<vlan>),
+#     with CTS inline tagging (sgt_propagation + sgt_trusted) so the SGT
+#     is preserved on egress to the SDA border AND inbound CMD frames
+#     from the SDA border are trusted without re-classification
+#   - the per-VPN BGP template for the EBGP handoff session
+#
+# Both C-EDGE-01 (Fabric B-facing) and C-EDGE-02 (Fabric A-facing) reuse
+# the same templates with different device_variables (interface name, IP,
+# BGP peer, remote-as).
 sdwan:
   edge_feature_templates:
 
     # ─────────────────────────────────────────────────────────────────────
-    # Dot1q sub-interface ethernet feature templates (Gi3.<vlan>)
-    # Used by cEdge-01 (Site 2, ACI handoff) and cEdge-02 (Site 3, CATC handoff)
-    # via device_variables on each site. The interface_name_variable carries
-    # the encoded sub-interface (e.g. "GigabitEthernet3.3010"); IOS-XE infers
-    # dot1q encap from the dotted name.
+    # Dot1q sub-interface on Gi3 for VPN 30 handoff with CTS inline tagging.
+    # interface_name_variable carries the encoded sub-interface name
+    # (e.g. "GigabitEthernet3.3010" or "GigabitEthernet3.3050"); IOS-XE
+    # infers the dot1q encap from the dotted name.
     # ─────────────────────────────────────────────────────────────────────
     ethernet_interface_templates:
       - name: FT-ETH3-SUBIF-VPN30-HANDOFF
-        description: Dot1q sub-interface on Gi3 for VPN 30 EBGP handoff
+        description: Dot1q sub-interface on Gi3 for VPN 30 EBGP handoff with CTS inline tagging
         interface_name_variable: handoff_vpn30_subif_if_name
         interface_description_variable: handoff_vpn30_subif_desc
         ipv4_address_variable: handoff_vpn30_subif_ipv4
         shutdown_variable: handoff_vpn30_subif_shutdown
         tcp_mss_variable: handoff_tcp_mss
-
-      - name: FT-ETH3-SUBIF-VPN40-HANDOFF
-        description: Dot1q sub-interface on Gi3 for VPN 40 EBGP handoff
-        interface_name_variable: handoff_vpn40_subif_if_name
-        interface_description_variable: handoff_vpn40_subif_desc
-        ipv4_address_variable: handoff_vpn40_subif_ipv4
-        shutdown_variable: handoff_vpn40_subif_shutdown
-        tcp_mss_variable: handoff_tcp_mss
+        # ── CTS inline tagging — propagation plane ──
+        # sgt_propagation: add CMD header on egress so the SDA border sees the SGT
+        # sgt_trusted: accept inbound CMD-tagged frames from the SDA border without
+        #              re-classifying (the SDA edge already classified at ingress)
+        # static_sgt deliberately unset — classification is upstream at the SDA edge
+        sgt_propagation: true
+        sgt_trusted: true
 
     # ─────────────────────────────────────────────────────────────────────
-    # BGP feature templates, one per service VPN.
-    # AS 65200 (SD-WAN overlay AS). Neighbors and remote-AS are device
-    # variables so cEdge-01 (peers AS 65100 / ACI) and cEdge-02 (peers AS
-    # 65001 / CATC) reuse the same templates with different values.
+    # BGP feature template for VPN 30 handoff.
+    # AS 65200 (SD-WAN overlay AS). Neighbor address and remote-AS come
+    # from device_variables so C-EDGE-01 (peers AS 65002 / Fabric B FIAB)
+    # and C-EDGE-02 (peers AS 65001 / Fabric A BORDER) reuse this template.
     # ─────────────────────────────────────────────────────────────────────
     bgp_templates:
       - name: FT-BGP-VPN30-HANDOFF
@@ -54,27 +62,7 @@ sdwan:
           neighbors:
             - address_variable: handoff_vpn30_bgp_peer
               remote_as_variable: handoff_vpn30_bgp_remote_as
-              description: Handoff EBGP peer (ACI border leaf or CATC border)
-              send_community: true
-              send_extended_community: true
-              address_families:
-                - family_type: ipv4-unicast
-
-      - name: FT-BGP-VPN40-HANDOFF
-        description: EBGP for VPN 40 handoff (AS 65200, OMP<->BGP redistribution)
-        as_number: 65200
-        propagate_as_path: true
-        propagate_community: true
-        router_id_variable: handoff_vpn40_bgp_router_id
-        ipv4_address_family:
-          maximum_paths: 4
-          redistributes:
-            - protocol: omp
-            - protocol: connected
-          neighbors:
-            - address_variable: handoff_vpn40_bgp_peer
-              remote_as_variable: handoff_vpn40_bgp_remote_as
-              description: Handoff EBGP peer (ACI border leaf or CATC border)
+              description: Handoff EBGP to SDA border
               send_community: true
               send_extended_community: true
               address_families:

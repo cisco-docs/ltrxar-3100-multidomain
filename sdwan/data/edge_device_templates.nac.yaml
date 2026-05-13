@@ -2,11 +2,16 @@
 # Multi-domain hub device template.
 # Composes the base feature templates from sdwan/ with the handoff-specific
 # templates declared in this repo. One device template is reused by both
-# cEdge-01 (Site 2, ACI-facing hub) and cEdge-02 (Site 3, CATC-facing).
+# C-EDGE-01 (Site 2, Fabric B-facing) and C-EDGE-02 (Site 3, Fabric A-facing).
+#
+# VPN 40 is intentionally NOT bound here — neither cEdge has a VPN 40
+# handoff in this design (Campus VN and IoT VN both share VPN 30). The
+# VPN 40 feature template still exists in sdwan/ as part of the foundation
+# library for future use.
 sdwan:
   edge_device_templates:
     - name: DT-HUB-C8000V-MULTIDOMAIN
-      description: "Multidomain HUB C8000V (ACI L3Out / CATC SDA border handoff)"
+      description: "Multidomain HUB C8000V (SDA fabric border handoff over VPN 30)"
       device_model: C8000V
       aaa_template: FT-REMOTE-EDGE-AAA-01
       banner_template: FT-REMOTE-EDGE-BANNER-01
@@ -29,9 +34,5 @@ sdwan:
           bgp_template: FT-BGP-VPN30-HANDOFF
           ethernet_interface_templates:
             - name: FT-ETH3-SUBIF-VPN30-HANDOFF
-        - name: FT-REMOTE-VPN40-GUEST
-          bgp_template: FT-BGP-VPN40-HANDOFF
-          ethernet_interface_templates:
-            - name: FT-ETH3-SUBIF-VPN40-HANDOFF
       vpn_512_template:
         name: FT-REMOTE-VPN512-MGMT

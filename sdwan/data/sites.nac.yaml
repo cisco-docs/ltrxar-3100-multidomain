@@ -1,19 +1,27 @@
 ---
 # Multi-domain SD-WAN sites.
 #
-# cEdge-01 (Site 2): HUB facing the ACI border leaf (eth1/1 on node 403).
-#   Two dot1q sub-interfaces on Gi3:
-#     Gi3.3010  VPN30 CORP   10.100.10.2/30  EBGP peer 10.100.10.1 AS 65100
-#     Gi3.3020  VPN40 GUEST  10.100.20.2/30  EBGP peer 10.100.20.1 AS 65100
+# C-EDGE-01 (Site 2): faces SDA Fabric B (FIAB Gi1/0/24).
+#   One dot1q sub-interface on Gi3:
+#     Gi3.3050  VPN30  10.100.50.2/30  EBGP peer 10.100.50.1 AS 65002
 #
-# cEdge-02 (Site 3): facing the CATC border BR10 (Gi1/0/3).
-#   Two dot1q sub-interfaces on Gi3:
-#     Gi3.3030  VPN30 CORP   10.100.30.2/30  EBGP peer 10.100.30.1 AS 65001
-#     Gi3.3040  VPN40 GUEST  10.100.40.2/30  EBGP peer 10.100.40.1 AS 65001
+# C-EDGE-02 (Site 3): faces SDA Fabric A (BORDER Gi1/0/24).
+#   One dot1q sub-interface on Gi3:
+#     Gi3.3010  VPN30  10.100.30.2/30  EBGP peer 10.100.30.1 AS 65001
+#
+# Both fabric L3 handoffs map into the same SDWAN VPN 30 — Campus VN at
+# Fabric A and IoT VN at Fabric B share VPN 30 so they're L3-reachable to
+# each other across the overlay. Segmentation between Cameras, Employees,
+# and Servers is provided by SGT only (see multi-domain/design.md §3).
+#
+# CTS inline tagging on the LAN handoff (sgt_propagation + sgt_trusted) is
+# applied via FT-ETH3-SUBIF-VPN30-HANDOFF in edge_feature_templates.nac.yaml.
+# CTS preservation across the overlay (propagate_sgt on the TLOC tunnels) is
+# applied via the FT-TLOC* templates owned by sdwan/.
 sdwan:
   sites:
     # ─────────────────────────────────────────────────────────────────────
-    # SITE 2 — cEdge-01 (HUB, ACI-facing)
+    # SITE 2 — C-EDGE-01 (Fabric B-facing)
     # ─────────────────────────────────────────────────────────────────────
     - id: 2
       routers:
@@ -24,13 +32,13 @@ sdwan:
             # System
             site_id: 2
             system_ip: 10.0.0.2
-            system_hostname: SD-SITE2-C8KV-01
+            system_hostname: C-EDGE-01
             controller_groups: 1,2
             timezone: UTC
-            system_description: Site 2 C8KV01 (HUB ACI-facing)
+            system_description: Site 2 C-EDGE-01 (Fabric B-facing, peer to FIAB)
             system_location: Site2
-            system_latitude: 38.1
-            system_longitude: -1.9
+            system_latitude: 36.1699
+            system_longitude: -115.1398
             ondemand_tunnel_enable: false
             ondemand_tunnel_idle_timeout: 10
 
@@ -42,7 +50,7 @@ sdwan:
             # Source-interface anchors for logging/NTP/SNMP (use TLOC1)
             logging_server_source_interface: GigabitEthernet1
             ntp_server_source_interface: GigabitEthernet1
-            snmp_contact: sac-admin@cisco.com
+            snmp_contact: lab-admin@cisco.com
             snmp_location: Location Site2
             snmp_shutdown: false
             snmp_trap_source_interface: GigabitEthernet1
@@ -80,39 +88,25 @@ sdwan:
             vpn0_tloc02_tunnel_group: 200
             vpn0_tloc02_tunnel_vmanage_connection_preference: 5
 
-            # VPN 30 service settings (no default route here; OMP carries CATC reachability)
+            # VPN 30 service settings
             vpn30_default_route_prefix: 0.0.0.0/0
-            vpn30_default_route_next_hop: 10.100.10.1
+            vpn30_default_route_next_hop: 10.100.50.1
             vpn30_default_route_distance: 1
-
-            # VPN 40 service settings
-            vpn40_default_route_prefix: 0.0.0.0/0
-            vpn40_default_route_next_hop: 10.100.20.1
-            vpn40_default_route_distance: 1
 
             # Handoff TCP MSS (clamp for SD-WAN tunnel overhead)
             handoff_tcp_mss: 1350
 
-            # ── VPN30 handoff sub-interface and BGP toward ACI L3Out PROD ──
-            handoff_vpn30_subif_if_name: GigabitEthernet3.3010
-            handoff_vpn30_subif_desc: HANDOFF to ACI L3OUT-SDWAN-PROD (node 403 eth1/1 VLAN 3010)
-            handoff_vpn30_subif_ipv4: 10.100.10.2/30
+            # ── VPN30 handoff sub-interface and BGP toward FIAB IoT VN ──
+            handoff_vpn30_subif_if_name: GigabitEthernet3.3050
+            handoff_vpn30_subif_desc: HANDOFF to FIAB Gi1/0/24 (IoT VN VLAN 3050)
+            handoff_vpn30_subif_ipv4: 10.100.50.2/30
             handoff_vpn30_subif_shutdown: false
             handoff_vpn30_bgp_router_id: 10.0.0.2
-            handoff_vpn30_bgp_peer: 10.100.10.1
-            handoff_vpn30_bgp_remote_as: 65100
-
-            # ── VPN40 handoff sub-interface and BGP toward ACI L3Out SVCS ──
-            handoff_vpn40_subif_if_name: GigabitEthernet3.3020
-            handoff_vpn40_subif_desc: HANDOFF to ACI L3OUT-SDWAN-SVCS (node 403 eth1/1 VLAN 3020)
-            handoff_vpn40_subif_ipv4: 10.100.20.2/30
-            handoff_vpn40_subif_shutdown: false
-            handoff_vpn40_bgp_router_id: 10.0.0.2
-            handoff_vpn40_bgp_peer: 10.100.20.1
-            handoff_vpn40_bgp_remote_as: 65100
+            handoff_vpn30_bgp_peer: 10.100.50.1
+            handoff_vpn30_bgp_remote_as: 65002
 
     # ─────────────────────────────────────────────────────────────────────
-    # SITE 3 — cEdge-02 (CATC-facing)
+    # SITE 3 — C-EDGE-02 (Fabric A-facing)
     # ─────────────────────────────────────────────────────────────────────
     - id: 3
       routers:
@@ -123,13 +117,13 @@ sdwan:
             # System
             site_id: 3
             system_ip: 10.0.0.3
-            system_hostname: SD-SITE3-C8KV-01
+            system_hostname: C-EDGE-02
             controller_groups: 1,2
             timezone: UTC
-            system_description: Site 3 C8KV01 (CATC-facing)
+            system_description: Site 3 C-EDGE-02 (Fabric A-facing, peer to BORDER)
             system_location: Site3
-            system_latitude: 50.06
-            system_longitude: 19.94
+            system_latitude: 36.1699
+            system_longitude: -115.1398
             ondemand_tunnel_enable: false
             ondemand_tunnel_idle_timeout: 10
 
@@ -141,7 +135,7 @@ sdwan:
             # Source-interface anchors
             logging_server_source_interface: GigabitEthernet1
             ntp_server_source_interface: GigabitEthernet1
-            snmp_contact: krk-admin@cisco.com
+            snmp_contact: lab-admin@cisco.com
             snmp_location: Location Site3
             snmp_shutdown: false
             snmp_trap_source_interface: GigabitEthernet1
@@ -179,31 +173,19 @@ sdwan:
             vpn0_tloc02_tunnel_group: 200
             vpn0_tloc02_tunnel_vmanage_connection_preference: 5
 
-            # VPN 30/40 service settings
+            # VPN 30 service settings
             vpn30_default_route_prefix: 0.0.0.0/0
             vpn30_default_route_next_hop: 10.100.30.1
             vpn30_default_route_distance: 1
-            vpn40_default_route_prefix: 0.0.0.0/0
-            vpn40_default_route_next_hop: 10.100.40.1
-            vpn40_default_route_distance: 1
 
             # Handoff TCP MSS
             handoff_tcp_mss: 1350
 
-            # ── VPN30 handoff sub-interface and BGP toward CATC Campus VN ──
-            handoff_vpn30_subif_if_name: GigabitEthernet3.3030
-            handoff_vpn30_subif_desc: HANDOFF to CATC BR10 Campus VN (Gi1/0/3 VLAN 3030)
+            # ── VPN30 handoff sub-interface and BGP toward BORDER Campus VN ──
+            handoff_vpn30_subif_if_name: GigabitEthernet3.3010
+            handoff_vpn30_subif_desc: HANDOFF to BORDER Gi1/0/24 (Campus VN VLAN 3010)
             handoff_vpn30_subif_ipv4: 10.100.30.2/30
             handoff_vpn30_subif_shutdown: false
             handoff_vpn30_bgp_router_id: 10.0.0.3
             handoff_vpn30_bgp_peer: 10.100.30.1
             handoff_vpn30_bgp_remote_as: 65001
-
-            # ── VPN40 handoff sub-interface and BGP toward CATC Guest VN ──
-            handoff_vpn40_subif_if_name: GigabitEthernet3.3040
-            handoff_vpn40_subif_desc: HANDOFF to CATC BR10 Guest VN (Gi1/0/3 VLAN 3040)
-            handoff_vpn40_subif_ipv4: 10.100.40.2/30
-            handoff_vpn40_subif_shutdown: false
-            handoff_vpn40_bgp_router_id: 10.0.0.3
-            handoff_vpn40_bgp_peer: 10.100.40.1
-            handoff_vpn40_bgp_remote_as: 65001
