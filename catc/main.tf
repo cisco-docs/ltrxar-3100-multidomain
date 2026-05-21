@@ -5,12 +5,12 @@ terraform {
       version = "0.4.7"
     }
   }
+
+  backend "http" {
+  }
 }
 
 provider "catalystcenter" {
-  username    = "username"
-  password    = "password"
-  url         = "https://dnac.url"
   max_timeout = 600
 }
 

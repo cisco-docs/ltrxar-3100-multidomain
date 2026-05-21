@@ -1,0 +1,85 @@
+---
+# All SDA fabric device inventory owned by multidomain/catc/.
+#
+# Fabric A:
+#   SDA-BORDER     BORDER + CP   (handles L3 egress + LISP map server)
+#   SDA-EDGE-01    EDGE          (Gi1/0/2 → laptop)
+#   SDA-EDGE-02    EDGE          (Gi1/0/3 → server)
+#
+# Fabric B:
+#   SDA-FIAB       BORDER + CP + EDGE (fabric-in-a-box, Gi1/0/1 → camera)
+#
+# Why all devices live in multidomain (not catc):
+#   CC requires CONTROL_PLANE_NODE in the fabric before any EDGE_NODE can be
+#   added, AND the CP role must be co-located with BORDER (CP+EDGE alone is
+#   rejected). Since SDA-BORDER (CP+BORDER) is in multidomain, the entire
+#   fabric_devices apply call for Fabric A lives here too.
+#
+# Border-specific settings (border_types, AS, L3 handoffs) for SDA-BORDER
+# and SDA-FIAB are in borders.nac.yaml (referenced by name).
+catalyst_center:
+  inventory:
+    devices:
+      # ─────────────────────── Fabric A ───────────────────────
+      - name: SDA-BORDER
+        fqdn_name: SDA-BORDER.cisco.com
+        device_ip: 198.18.140.31
+        pid: C9KV-UADP-8P
+        state: PROVISION
+        device_role: BORDER ROUTER
+        site: Global/USA/Nevada/Las Vegas/Bld A
+        fabric_site: Global/USA/Nevada/Las Vegas/Bld A
+        fabric_roles:
+          - BORDER_NODE
+          - CONTROL_PLANE_NODE
+
+      - name: SDA-EDGE-01
+        fqdn_name: SDA-EDGE-01.cisco.com
+        device_ip: 198.18.140.32
+        pid: C9KV-UADP-8P
+        state: PROVISION
+        device_role: ACCESS
+        site: Global/USA/Nevada/Las Vegas/Bld A
+        fabric_site: Global/USA/Nevada/Las Vegas/Bld A
+        fabric_roles:
+          - EDGE_NODE
+        port_assignments:
+          - interface_name: GigabitEthernet1/0/2
+            connected_device_type: USER_DEVICE
+            data_vlan_name: VLAN_EMPLOYEES
+            authenticate_template_name: "No Authentication"
+
+      - name: SDA-EDGE-02
+        fqdn_name: SDA-EDGE-02.cisco.com
+        device_ip: 198.18.140.33
+        pid: C9KV-UADP-8P
+        state: PROVISION
+        device_role: ACCESS
+        site: Global/USA/Nevada/Las Vegas/Bld A
+        fabric_site: Global/USA/Nevada/Las Vegas/Bld A
+        fabric_roles:
+          - EDGE_NODE
+        port_assignments:
+          - interface_name: GigabitEthernet1/0/3
+            connected_device_type: USER_DEVICE
+            data_vlan_name: VLAN_SERVERS
+            authenticate_template_name: "No Authentication"
+
+      # ─────────────────────── Fabric B ───────────────────────
+      - name: SDA-FIAB
+        fqdn_name: SDA-FIAB.cisco.com
+        device_ip: 198.18.140.34
+        pid: C9KV-UADP-8P
+        state: PROVISION
+        device_role: BORDER ROUTER
+        site: Global/USA/Nevada/Las Vegas/Bld B
+        fabric_site: Global/USA/Nevada/Las Vegas/Bld B
+        fabric_roles:
+          - BORDER_NODE
+          - CONTROL_PLANE_NODE
+          - EDGE_NODE
+        port_assignments:
+          - interface_name: GigabitEthernet1/0/1
+            connected_device_type: USER_DEVICE
+            data_vlan_name: VLAN_CAMERAS
+            authenticate_template_name: "No Authentication"

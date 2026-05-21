@@ -1,0 +1,51 @@
+---
+# Border-specific fabric configuration for SDA-BORDER and SDA-FIAB.
+# Each entry includes the L3 handoff toward the corresponding SD-WAN cEdge.
+# Device inventory entries (matched by name) are in devices.nac.yaml.
+# Shared transit (BGP-SDWAN, AS 65200) is in transit.nac.yaml.
+#
+# Handoff plan (multidomain/design.md §4):
+#   SDA-BORDER Gi1/0/24 ──► C-EDGE-02 Gi3 (Site 3)
+#     VLAN 3010  Campus VN  10.100.30.1/30 ↔ peer 10.100.30.2  remote-as 65200
+#   SDA-FIAB   Gi1/0/24 ──► C-EDGE-01 Gi3 (Site 2)
+#     VLAN 3050  IoT VN     10.100.50.1/30 ↔ peer 10.100.50.2  remote-as 65200
+#
+# Fabric A local AS: 65001;  Fabric B local AS: 65002;  Transit AS: 65200.
+catalyst_center:
+  fabric:
+    border_devices:
+      # ─────────────────────── Fabric A ───────────────────────
+      - name: SDA-BORDER
+        border_types:
+          - LAYER_3
+        default_exit: true
+        import_external_routes: false
+        local_autonomous_system_number: 65001
+        l3_handoffs:
+          - name: BGP-SDWAN
+            interfaces:
+              - name: GigabitEthernet1/0/24
+                virtual_networks:
+                  - name: Campus
+                    vlan: 3010
+                    local_ip_address: 10.100.30.1/30
+                    peer_ip_address: 10.100.30.2/30
+                    tcp_mss_adjustment: 1350
+
+      # ─────────────────────── Fabric B ───────────────────────
+      - name: SDA-FIAB
+        border_types:
+          - LAYER_3
+        default_exit: true
+        import_external_routes: false
+        local_autonomous_system_number: 65002
+        l3_handoffs:
+          - name: BGP-SDWAN
+            interfaces:
+              - name: GigabitEthernet1/0/24
+                virtual_networks:
+                  - name: IoT
+                    vlan: 3050
+                    local_ip_address: 10.100.50.1/30
+                    peer_ip_address: 10.100.50.2/30
+                    tcp_mss_adjustment: 1350

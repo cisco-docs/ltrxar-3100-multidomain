@@ -1,5 +1,7 @@
 ---
-image: danischm/nac:latest
+image:
+  name: danischm/nac:latest
+  pull_policy: if-not-present
 
 stages:
   - validate
@@ -23,30 +25,37 @@ variables:
     value: "gitlab-ci-token"
   TF_HTTP_PASSWORD:
     description: "GitLab Access Token"
-    value: "${CI_JOB_TOKEN}"
+    value: "${GITLAB_TOKEN}"
   GITLAB_API_URL:
     description: "GitLab API v4 root URL"
     value: "${CI_API_V4_URL}"
   TF_HTTP_ADDRESS:
     value: "${GITLAB_API_URL}/projects/${CI_PROJECT_ID}/terraform/state/mdo-catc"
   TF_HTTP_LOCK_ADDRESS:
-    value: ${TF_HTTP_ADDRESS}/lock
+    value: "${TF_HTTP_ADDRESS}/lock"
   TF_HTTP_LOCK_METHOD:
     value: POST
   TF_HTTP_UNLOCK_ADDRESS:
-    value: ${TF_HTTP_ADDRESS}/lock
+    value: "${TF_HTTP_ADDRESS}/lock"
   TF_HTTP_UNLOCK_METHOD:
     value: DELETE
 
 before_script:
-  - cd multi-domain/catc
+  - update-ca-certificates
+  - echo "http_proxy=$http_proxy"
+  - echo "https_proxy=$https_proxy"
+  - echo "NO_PROXY=$NO_PROXY"
+  - echo "no_proxy=$no_proxy"
+  - git config --global http.proxy "$http_proxy"
+  - git config --global https.proxy "$https_proxy"
+  - cd catc
 
 cache:
   key: mdo_catc_terraform_modules
   paths:
-    - multi-domain/catc/.terraform
-    - multi-domain/catc/.terraform.lock.hcl
-    - multi-domain/catc/defaults.yaml
+    - catc/.terraform
+    - catc/.terraform.lock.hcl
+    - catc/defaults.yaml
 
 validate:
   stage: validate
@@ -55,8 +64,8 @@ validate:
     - set -o pipefail && nac-validate ./data/ |& tee validate_output.txt
   artifacts:
     paths:
-      - multi-domain/catc/fmt_output.txt
-      - multi-domain/catc/validate_output.txt
+      - catc/fmt_output.txt
+      - catc/validate_output.txt
   cache: []
   rules:
     - if: $CI_COMMIT_TAG == null
@@ -71,15 +80,22 @@ plan:
     - terraform show -no-color plan.tfplan > plan.txt
   artifacts:
     paths:
-      - multi-domain/catc/plan.txt
-      - multi-domain/catc/plan.tfplan
+      - catc/plan.txt
+      - catc/plan.tfplan
   needs:
     - validate
-  only:
-    - master
-    - merge_requests
-  except:
-    - tags
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^devhub\//'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH =~ /^devhub\//'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
 
 deploy:
   stage: deploy
@@ -90,17 +106,36 @@ deploy:
     - terraform apply -input=false -auto-approve plan.tfplan
   needs:
     - plan
-  only:
-    - master
-    - merge_requests
-  except:
-    - tags
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^devhub\//'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH =~ /^devhub\//'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - when: never
 
 destroy:
   stage: destroy
+  resource_group: catc
+  needs: []
+  dependencies: []
+  variables:
+    TF_HTTP_PASSWORD: "${GITLAB_TOKEN}"
   script:
     - terraform init
     - terraform destroy -auto-approve
   rules:
-    - if: "$CI_COMMIT_TAG =~ /^cleanup-mdo-catc/"
-      when: always
+    - if: '$CI_COMMIT_BRANCH =~ /^devhub\//'
+      when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true

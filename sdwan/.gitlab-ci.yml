@@ -45,14 +45,14 @@ variables:
 
 before_script:
   - update-ca-certificates
-  - cd multi-domain/sdwan
+  - cd sdwan
 
 cache:
   key: mdo_sdwan_terraform_modules
   paths:
-    - multi-domain/sdwan/.terraform
-    - multi-domain/sdwan/.terraform.lock.hcl
-    - multi-domain/sdwan/defaults.yaml
+    - sdwan/.terraform
+    - sdwan/.terraform.lock.hcl
+    - sdwan/defaults.yaml
 
 validate:
   stage: validate
@@ -61,8 +61,8 @@ validate:
     - set -o pipefail && nac-validate ./data/ |& tee validate_output.txt
   artifacts:
     paths:
-      - multi-domain/sdwan/fmt_output.txt
-      - multi-domain/sdwan/validate_output.txt
+      - sdwan/fmt_output.txt
+      - sdwan/validate_output.txt
     expire_in: 7 days
   cache: []
   rules:
@@ -78,15 +78,21 @@ plan:
     - terraform show -no-color plan.tfplan > plan.txt
   artifacts:
     paths:
-      - multi-domain/sdwan/plan.txt
-      - multi-domain/sdwan/plan.tfplan
+      - sdwan/plan.txt
+      - sdwan/plan.tfplan
     expire_in: 7 days
   needs:
     - validate
   rules:
     - if: '$CI_COMMIT_TAG'
       when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^devhub\//'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH =~ /^devhub\//'
+      when: on_success
     - if: '$CI_COMMIT_BRANCH == "master"'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == "main"'
       when: on_success
     - when: never
 
@@ -102,17 +108,33 @@ deploy:
   rules:
     - if: '$CI_COMMIT_TAG'
       when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^devhub\//'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH =~ /^devhub\//'
+      when: manual
     - if: '$CI_COMMIT_BRANCH == "master"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
     - when: never
 
 destroy:
   stage: destroy
   resource_group: sdwan
-  when: manual
+  needs: []
+  dependencies: []
+  variables:
+    TF_HTTP_PASSWORD: "${GITLAB_TOKEN}"
   script:
     - terraform init
     - terraform destroy -auto-approve
   rules:
+    - if: '$CI_COMMIT_BRANCH =~ /^devhub\//'
+      when: manual
+      allow_failure: true
     - if: '$CI_COMMIT_BRANCH == "master"'
       when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true

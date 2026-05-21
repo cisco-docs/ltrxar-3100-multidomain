@@ -34,6 +34,8 @@ deploy_catc:
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
       when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
 
 deploy_sdwan:
   stage: deploy-sdwan
@@ -42,4 +44,6 @@ deploy_sdwan:
     strategy: depend
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
       when: always
