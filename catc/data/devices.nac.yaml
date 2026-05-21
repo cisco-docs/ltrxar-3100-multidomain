@@ -32,6 +32,14 @@ catalyst_center:
         fabric_roles:
           - BORDER_NODE
           - CONTROL_PLANE_NODE
+        dayn_templates:
+          regular:
+            - name: cts-bootstrap
+              variables:
+                - name: device_name
+                  value: SDA-BORDER
+                - name: cts_password
+                  value: Cisco123!
 
       - name: SDA-EDGE-01
         fqdn_name: SDA-EDGE-01.cisco.com
@@ -48,6 +56,14 @@ catalyst_center:
             connected_device_type: USER_DEVICE
             data_vlan_name: VLAN_EMPLOYEES
             authenticate_template_name: "No Authentication"
+        dayn_templates:
+          regular:
+            - name: cts-bootstrap
+              variables:
+                - name: device_name
+                  value: SDA-EDGE-01
+                - name: cts_password
+                  value: Cisco123!
 
       - name: SDA-EDGE-02
         fqdn_name: SDA-EDGE-02.cisco.com
@@ -64,6 +80,14 @@ catalyst_center:
             connected_device_type: USER_DEVICE
             data_vlan_name: VLAN_SERVERS
             authenticate_template_name: "No Authentication"
+        dayn_templates:
+          regular:
+            - name: cts-bootstrap
+              variables:
+                - name: device_name
+                  value: SDA-EDGE-02
+                - name: cts_password
+                  value: Cisco123!
 
       # ─────────────────────── Fabric B ───────────────────────
       - name: SDA-FIAB
@@ -83,3 +107,11 @@ catalyst_center:
             connected_device_type: USER_DEVICE
             data_vlan_name: VLAN_CAMERAS
             authenticate_template_name: "No Authentication"
+        dayn_templates:
+          regular:
+            - name: cts-bootstrap
+              variables:
+                - name: device_name
+                  value: SDA-FIAB
+                - name: cts_password
+                  value: Cisco123!
