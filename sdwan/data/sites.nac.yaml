@@ -25,7 +25,7 @@ sdwan:
     # ─────────────────────────────────────────────────────────────────────
     - id: 2
       routers:
-        - chassis_id: C8K-D4CE7174-5261-7E6F-91EA-4926BCF4C2DD
+        - chassis_id: C8K-3D1A8960-6E76-532C-DA93-50626FC5797E
           model: C8000V
           device_template: DT-HUB-C8000V-MULTIDOMAIN
           device_variables:
@@ -110,7 +110,7 @@ sdwan:
     # ─────────────────────────────────────────────────────────────────────
     - id: 3
       routers:
-        - chassis_id: C8K-PLACEHOLDER-CHASSIS-CEDGE02-SITE3-XXXXXXXX
+        - chassis_id: C8K-D4CE7174-5261-7E6F-91EA-4926BCF4C2DD
           model: C8000V
           device_template: DT-HUB-C8000V-MULTIDOMAIN
           device_variables:
