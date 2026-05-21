@@ -44,7 +44,7 @@ catalyst_center:
         fabric_roles:
           - EDGE_NODE
         port_assignments:
-          - interface_name: GigabitEthernet1/0/2
+          - interface_name: GigabitEthernet1/0/1
             connected_device_type: USER_DEVICE
             data_vlan_name: VLAN_EMPLOYEES
             authenticate_template_name: "No Authentication"
@@ -60,7 +60,7 @@ catalyst_center:
         fabric_roles:
           - EDGE_NODE
         port_assignments:
-          - interface_name: GigabitEthernet1/0/3
+          - interface_name: GigabitEthernet1/0/1
             connected_device_type: USER_DEVICE
             data_vlan_name: VLAN_SERVERS
             authenticate_template_name: "No Authentication"
