@@ -1,18 +1,26 @@
 ---
 # Multi-domain SD-WAN sites.
 #
-# C-EDGE-01 (Site 2): faces SDA Fabric B (FIAB Gi1/0/24).
+# Site/system identity matches what's already on the C8000V's in CML:
+#   C-EDGE-01: chassis C8K-3D1A8960-...  Site 1  system-ip 10.0.0.1
+#   C-EDGE-02: chassis C8K-D4CE7174-...  Site 2  system-ip 10.0.0.2
+#
+# Interface IP convention from CML (172.16.<1=INET|2=MPLS>.<site_id>):
+#   C-EDGE-01 (Site 1):  G1 172.16.1.1/24 (INET)  G2 172.16.2.1/24 (MPLS)
+#   C-EDGE-02 (Site 2):  G1 172.16.1.2/24 (INET)  G2 172.16.2.2/24 (MPLS)
+#
+# C-EDGE-01 (Site 1): faces SDA Fabric B (FIAB Gi1/0/24).
 #   One dot1q sub-interface on Gi3:
 #     Gi3.3050  VPN30  10.100.50.2/30  EBGP peer 10.100.50.1 AS 65002
 #
-# C-EDGE-02 (Site 3): faces SDA Fabric A (BORDER Gi1/0/24).
+# C-EDGE-02 (Site 2): faces SDA Fabric A (SDA-BORDER Gi1/0/24).
 #   One dot1q sub-interface on Gi3:
 #     Gi3.3010  VPN30  10.100.30.2/30  EBGP peer 10.100.30.1 AS 65001
 #
 # Both fabric L3 handoffs map into the same SDWAN VPN 30 — Campus VN at
 # Fabric A and IoT VN at Fabric B share VPN 30 so they're L3-reachable to
 # each other across the overlay. Segmentation between Cameras, Employees,
-# and Servers is provided by SGT only (see multi-domain/design.md §3).
+# and Servers is provided by SGT only (see multidomain/design.md §3).
 #
 # CTS inline tagging on the LAN handoff (sgt_propagation + sgt_trusted) is
 # applied via FT-ETH3-SUBIF-VPN30-HANDOFF in edge_feature_templates.nac.yaml.
@@ -21,22 +29,22 @@
 sdwan:
   sites:
     # ─────────────────────────────────────────────────────────────────────
-    # SITE 2 — C-EDGE-01 (Fabric B-facing)
+    # SITE 1 — C-EDGE-01 (Fabric B-facing, peer to SDA-FIAB)
     # ─────────────────────────────────────────────────────────────────────
-    - id: 2
+    - id: 1
       routers:
         - chassis_id: C8K-3D1A8960-6E76-532C-DA93-50626FC5797E
           model: C8000V
           device_template: DT-HUB-C8000V-MULTIDOMAIN
           device_variables:
             # System
-            site_id: 2
-            system_ip: 10.0.0.2
+            site_id: 1
+            system_ip: 10.0.0.1
             system_hostname: C-EDGE-01
             controller_groups: 1,2
             timezone: UTC
-            system_description: Site 2 C-EDGE-01 (Fabric B-facing, peer to FIAB)
-            system_location: Site2
+            system_description: Site 1 C-EDGE-01 (Fabric B-facing, peer to SDA-FIAB)
+            system_location: Site1
             system_latitude: 36.1699
             system_longitude: -115.1398
             ondemand_tunnel_enable: false
@@ -51,11 +59,96 @@ sdwan:
             logging_server_source_interface: GigabitEthernet1
             ntp_server_source_interface: GigabitEthernet1
             snmp_contact: lab-admin@cisco.com
-            snmp_location: Location Site2
+            snmp_location: Location Site1
             snmp_shutdown: false
             snmp_trap_source_interface: GigabitEthernet1
 
             # VPN0 overlay + TLOCs (biz-internet + mpls)
+            vpn0_dns_primary: 172.16.1.254
+            vpn0_dns_secondary: 172.16.2.254
+            vpn0_layer4_ecmp_enable: true
+            vpn0_ipv4_route1_nexthop1_ip: 172.16.1.254
+            vpn0_ipv4_route1_nexthop1_distance: 1
+            vpn0_ipv4_route1_nexthop2_ip: 172.16.2.254
+            vpn0_ipv4_route1_nexthop2_distance: 1
+
+            vpn0_tloc01_if_name: GigabitEthernet1
+            vpn0_tloc01_if_description: INET-1
+            vpn0_tloc01_if_ipv4_address: 172.16.1.1/24
+            vpn0_tloc01_if_shutdown: false
+            vpn0_tloc01_shaping_rate: 1000000
+            vpn0_tloc01_tunnel_color: biz-internet
+            vpn0_tloc01_tunnel_restrict: false
+            vpn0_tloc01_tunnel_ipsec_preference: 1000
+            vpn0_tloc01_tunnel_weight: 1
+            vpn0_tloc01_tunnel_group: 100
+            vpn0_tloc01_tunnel_vmanage_connection_preference: 5
+
+            vpn0_tloc02_if_name: GigabitEthernet2
+            vpn0_tloc02_if_description: MPLS-1
+            vpn0_tloc02_if_ipv4_address: 172.16.2.1/24
+            vpn0_tloc02_if_shutdown: false
+            vpn0_tloc02_shaping_rate: 1000000
+            vpn0_tloc02_tunnel_color: mpls
+            vpn0_tloc02_tunnel_restrict: false
+            vpn0_tloc02_tunnel_ipsec_preference: 1000
+            vpn0_tloc02_tunnel_weight: 1
+            vpn0_tloc02_tunnel_group: 200
+            vpn0_tloc02_tunnel_vmanage_connection_preference: 5
+
+            # VPN 30 service settings
+            vpn30_default_route_prefix: 0.0.0.0/0
+            vpn30_default_route_next_hop: 10.100.50.1
+            vpn30_default_route_distance: 1
+
+            # Handoff TCP MSS (clamp for SD-WAN tunnel overhead)
+            handoff_tcp_mss: 1350
+
+            # ── VPN30 handoff sub-interface and BGP toward SDA-FIAB IoT VN ──
+            handoff_vpn30_subif_if_name: GigabitEthernet3.3050
+            handoff_vpn30_subif_desc: HANDOFF to SDA-FIAB Gi1/0/24 (IoT VN VLAN 3050)
+            handoff_vpn30_subif_ipv4: 10.100.50.2/30
+            handoff_vpn30_subif_shutdown: false
+            handoff_vpn30_bgp_router_id: 10.0.0.1
+            handoff_vpn30_bgp_peer: 10.100.50.1
+            handoff_vpn30_bgp_remote_as: 65002
+
+    # ─────────────────────────────────────────────────────────────────────
+    # SITE 2 — C-EDGE-02 (Fabric A-facing, peer to SDA-BORDER)
+    # ─────────────────────────────────────────────────────────────────────
+    - id: 2
+      routers:
+        - chassis_id: C8K-D4CE7174-5261-7E6F-91EA-4926BCF4C2DD
+          model: C8000V
+          device_template: DT-HUB-C8000V-MULTIDOMAIN
+          device_variables:
+            # System
+            site_id: 2
+            system_ip: 10.0.0.2
+            system_hostname: C-EDGE-02
+            controller_groups: 1,2
+            timezone: UTC
+            system_description: Site 2 C-EDGE-02 (Fabric A-facing, peer to SDA-BORDER)
+            system_location: Site2
+            system_latitude: 36.1699
+            system_longitude: -115.1398
+            ondemand_tunnel_enable: false
+            ondemand_tunnel_idle_timeout: 10
+
+            # Global
+            global_cdp_enable: true
+            global_lldp_enable: false
+            global_ip_domain_lookup_enable: true
+
+            # Source-interface anchors
+            logging_server_source_interface: GigabitEthernet1
+            ntp_server_source_interface: GigabitEthernet1
+            snmp_contact: lab-admin@cisco.com
+            snmp_location: Location Site2
+            snmp_shutdown: false
+            snmp_trap_source_interface: GigabitEthernet1
+
+            # VPN0 overlay + TLOCs
             vpn0_dns_primary: 172.16.1.254
             vpn0_dns_secondary: 172.16.2.254
             vpn0_layer4_ecmp_enable: true
@@ -90,102 +183,17 @@ sdwan:
 
             # VPN 30 service settings
             vpn30_default_route_prefix: 0.0.0.0/0
-            vpn30_default_route_next_hop: 10.100.50.1
-            vpn30_default_route_distance: 1
-
-            # Handoff TCP MSS (clamp for SD-WAN tunnel overhead)
-            handoff_tcp_mss: 1350
-
-            # ── VPN30 handoff sub-interface and BGP toward FIAB IoT VN ──
-            handoff_vpn30_subif_if_name: GigabitEthernet3.3050
-            handoff_vpn30_subif_desc: HANDOFF to FIAB Gi1/0/24 (IoT VN VLAN 3050)
-            handoff_vpn30_subif_ipv4: 10.100.50.2/30
-            handoff_vpn30_subif_shutdown: false
-            handoff_vpn30_bgp_router_id: 10.0.0.2
-            handoff_vpn30_bgp_peer: 10.100.50.1
-            handoff_vpn30_bgp_remote_as: 65002
-
-    # ─────────────────────────────────────────────────────────────────────
-    # SITE 3 — C-EDGE-02 (Fabric A-facing)
-    # ─────────────────────────────────────────────────────────────────────
-    - id: 3
-      routers:
-        - chassis_id: C8K-D4CE7174-5261-7E6F-91EA-4926BCF4C2DD
-          model: C8000V
-          device_template: DT-HUB-C8000V-MULTIDOMAIN
-          device_variables:
-            # System
-            site_id: 3
-            system_ip: 10.0.0.3
-            system_hostname: C-EDGE-02
-            controller_groups: 1,2
-            timezone: UTC
-            system_description: Site 3 C-EDGE-02 (Fabric A-facing, peer to BORDER)
-            system_location: Site3
-            system_latitude: 36.1699
-            system_longitude: -115.1398
-            ondemand_tunnel_enable: false
-            ondemand_tunnel_idle_timeout: 10
-
-            # Global
-            global_cdp_enable: true
-            global_lldp_enable: false
-            global_ip_domain_lookup_enable: true
-
-            # Source-interface anchors
-            logging_server_source_interface: GigabitEthernet1
-            ntp_server_source_interface: GigabitEthernet1
-            snmp_contact: lab-admin@cisco.com
-            snmp_location: Location Site3
-            snmp_shutdown: false
-            snmp_trap_source_interface: GigabitEthernet1
-
-            # VPN0 overlay + TLOCs
-            vpn0_dns_primary: 172.16.1.254
-            vpn0_dns_secondary: 172.16.2.254
-            vpn0_layer4_ecmp_enable: true
-            vpn0_ipv4_route1_nexthop1_ip: 172.16.1.254
-            vpn0_ipv4_route1_nexthop1_distance: 1
-            vpn0_ipv4_route1_nexthop2_ip: 172.16.2.254
-            vpn0_ipv4_route1_nexthop2_distance: 1
-
-            vpn0_tloc01_if_name: GigabitEthernet1
-            vpn0_tloc01_if_description: INET-1
-            vpn0_tloc01_if_ipv4_address: 172.16.1.3/24
-            vpn0_tloc01_if_shutdown: false
-            vpn0_tloc01_shaping_rate: 1000000
-            vpn0_tloc01_tunnel_color: biz-internet
-            vpn0_tloc01_tunnel_restrict: false
-            vpn0_tloc01_tunnel_ipsec_preference: 1000
-            vpn0_tloc01_tunnel_weight: 1
-            vpn0_tloc01_tunnel_group: 100
-            vpn0_tloc01_tunnel_vmanage_connection_preference: 5
-
-            vpn0_tloc02_if_name: GigabitEthernet2
-            vpn0_tloc02_if_description: MPLS-1
-            vpn0_tloc02_if_ipv4_address: 172.16.2.3/24
-            vpn0_tloc02_if_shutdown: false
-            vpn0_tloc02_shaping_rate: 1000000
-            vpn0_tloc02_tunnel_color: mpls
-            vpn0_tloc02_tunnel_restrict: false
-            vpn0_tloc02_tunnel_ipsec_preference: 1000
-            vpn0_tloc02_tunnel_weight: 1
-            vpn0_tloc02_tunnel_group: 200
-            vpn0_tloc02_tunnel_vmanage_connection_preference: 5
-
-            # VPN 30 service settings
-            vpn30_default_route_prefix: 0.0.0.0/0
             vpn30_default_route_next_hop: 10.100.30.1
             vpn30_default_route_distance: 1
 
             # Handoff TCP MSS
             handoff_tcp_mss: 1350
 
-            # ── VPN30 handoff sub-interface and BGP toward BORDER Campus VN ──
+            # ── VPN30 handoff sub-interface and BGP toward SDA-BORDER Campus VN ──
             handoff_vpn30_subif_if_name: GigabitEthernet3.3010
-            handoff_vpn30_subif_desc: HANDOFF to BORDER Gi1/0/24 (Campus VN VLAN 3010)
+            handoff_vpn30_subif_desc: HANDOFF to SDA-BORDER Gi1/0/24 (Campus VN VLAN 3010)
             handoff_vpn30_subif_ipv4: 10.100.30.2/30
             handoff_vpn30_subif_shutdown: false
-            handoff_vpn30_bgp_router_id: 10.0.0.3
+            handoff_vpn30_bgp_router_id: 10.0.0.2
             handoff_vpn30_bgp_peer: 10.100.30.1
             handoff_vpn30_bgp_remote_as: 65001
