@@ -2,7 +2,7 @@
 # Multi-domain hub device template.
 # Composes the base feature templates from sdwan/ with the handoff-specific
 # templates declared in this repo. One device template is reused by both
-# C-EDGE-01 (Site 2, Fabric B-facing) and C-EDGE-02 (Site 3, Fabric A-facing).
+# C-EDGE-01 (Site 1, Fabric B-facing) and C-EDGE-02 (Site 2, Fabric A-facing).
 #
 # VPN 40 is intentionally NOT bound here — neither cEdge has a VPN 40
 # handoff in this design (Campus VN and IoT VN both share VPN 30). The

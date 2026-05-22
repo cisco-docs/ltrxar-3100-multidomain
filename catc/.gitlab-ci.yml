@@ -7,6 +7,8 @@ stages:
   - validate
   - plan
   - deploy
+  - test
+  - notify
   - destroy
 
 variables:
@@ -26,18 +28,27 @@ variables:
   TF_HTTP_PASSWORD:
     description: "GitLab Access Token"
     value: "${GITLAB_TOKEN}"
+  WEBEX_ROOM_ID:
+    description: "Cisco Webex Room ID"
+  WEBEX_TOKEN:
+    description: "Cisco Webex Bot Token"
   GITLAB_API_URL:
     description: "GitLab API v4 root URL"
     value: "${CI_API_V4_URL}"
   TF_HTTP_ADDRESS:
+    description: "GitLab HTTP Address to store the TF state file"
     value: "${GITLAB_API_URL}/projects/${CI_PROJECT_ID}/terraform/state/mdo-catc"
   TF_HTTP_LOCK_ADDRESS:
+    description: "GitLab HTTP Address to lock the TF state file"
     value: "${TF_HTTP_ADDRESS}/lock"
   TF_HTTP_LOCK_METHOD:
+    description: "Method to lock TF state file"
     value: POST
   TF_HTTP_UNLOCK_ADDRESS:
+    description: "GitLab HTTP Address to unlock the TF state file"
     value: "${TF_HTTP_ADDRESS}/lock"
   TF_HTTP_UNLOCK_METHOD:
+    description: "Method to unlock TF state file"
     value: DELETE
 
 before_script:
@@ -55,17 +66,18 @@ cache:
   paths:
     - catc/.terraform
     - catc/.terraform.lock.hcl
-    - catc/defaults.yaml
+    - catc/defaults/defaults.yaml
 
 validate:
   stage: validate
   script:
     - set -o pipefail && terraform fmt -check |& tee fmt_output.txt
-    - set -o pipefail && nac-validate ./data/ |& tee validate_output.txt
+    - set -o pipefail && nac-validate ./data/ --rules ./validation/rules |& tee validate_output.txt
   artifacts:
     paths:
       - catc/fmt_output.txt
       - catc/validate_output.txt
+    expire_in: 7 days
   cache: []
   rules:
     - if: $CI_COMMIT_TAG == null
@@ -75,13 +87,26 @@ plan:
   resource_group: catc
   script:
     - terraform version
+    - env | egrep -i 'http.*proxy|no_proxy' || true
+    - git config --global --get http.proxy || true
+    - git config --global --get https.proxy || true
     - terraform init -upgrade -input=false
+    - terraform providers
     - terraform plan -out=plan.tfplan -input=false
     - terraform show -no-color plan.tfplan > plan.txt
+    - terraform show -json plan.tfplan | jq > plan.json
+    - terraform show -json plan.tfplan | jq '([.resource_changes[]?.change.actions?]|flatten)|{"create":(map(select(.=="create"))|length),"update":(map(select(.=="update"))|length),"delete":(map(select(.=="delete"))|length)}' > plan_gitlab.json
+    - python3 .ci/gitlab-comment.py
   artifacts:
     paths:
+      - catc/plan.json
       - catc/plan.txt
       - catc/plan.tfplan
+      - catc/plan_gitlab.json
+    expire_in: 7 days
+    reports:
+      terraform: catc/plan_gitlab.json
+  dependencies: []
   needs:
     - validate
   rules:
@@ -103,7 +128,23 @@ deploy:
   when: manual
   allow_failure: false
   script:
+    - export TF_LOG=DEBUG
+    - export TF_LOG_PATH=terraform-debug.log
     - terraform apply -input=false -auto-approve plan.tfplan
+    - echo "--- TF DEBUG LOG START ---"
+    - cat terraform-debug.log || echo "No debug log found"
+    - echo "--- TF DEBUG LOG END ---"
+    - echo "--- TERRAFORM OUTPUTS ---"
+    - terraform output > all_outputs.txt || echo "No outputs found"
+  artifacts:
+    paths:
+      - catc/defaults/defaults.yaml
+      - catc/terraform-debug.log
+      - catc/all_outputs.txt
+    when: always
+    expire_in: 7 days
+  dependencies:
+    - plan
   needs:
     - plan
   rules:
@@ -118,6 +159,73 @@ deploy:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
     - when: never
+
+test-integration:
+  stage: test
+  resource_group: catc
+  script:
+    - set -o pipefail && nac-test -d ./data -d ./defaults -t ./templates/catalyst_center/test -o ./tests/results/catalyst_center |& tee test_output.txt
+  artifacts:
+    when: always
+    paths:
+      - catc/tests/results/catalyst_center/*.html
+      - catc/tests/results/catalyst_center/xunit.xml
+      - catc/test_output.txt
+    expire_in: 7 days
+    reports:
+      junit: catc/tests/results/catalyst_center/xunit.xml
+  dependencies:
+    - deploy
+  needs:
+    - deploy
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^devhub\//'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH =~ /^devhub\//'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+
+failure:
+  stage: notify
+  script:
+    - python3 .ci/webex-notification-gitlab.py -f
+  when: on_failure
+  allow_failure: true
+  artifacts:
+    when: always
+    paths:
+      - catc/tests/results/catalyst_center/*.html
+      - catc/tests/results/catalyst_center/xunit.xml
+      - catc/plan.txt
+      - catc/fmt_output.txt
+      - catc/validate_output.txt
+      - catc/test_output.txt
+    expire_in: 7 days
+  cache: []
+
+success:
+  stage: notify
+  script:
+    - python3 .ci/webex-notification-gitlab.py -s
+  when: on_success
+  allow_failure: true
+  artifacts:
+    when: always
+    paths:
+      - catc/tests/results/catalyst_center/*.html
+      - catc/tests/results/catalyst_center/xunit.xml
+      - catc/plan.txt
+      - catc/fmt_output.txt
+      - catc/validate_output.txt
+      - catc/test_output.txt
+    expire_in: 7 days
+  cache: []
 
 destroy:
   stage: destroy

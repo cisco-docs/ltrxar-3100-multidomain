@@ -39,7 +39,7 @@ catalyst_center:
                 - name: device_name
                   value: SDA-BORDER
                 - name: cts_password
-                  value: Cisco123!
+                  value: C1sco12345
 
       - name: SDA-EDGE-01
         fqdn_name: SDA-EDGE-01.cisco.com
@@ -63,7 +63,7 @@ catalyst_center:
                 - name: device_name
                   value: SDA-EDGE-01
                 - name: cts_password
-                  value: Cisco123!
+                  value: C1sco12345
 
       - name: SDA-EDGE-02
         fqdn_name: SDA-EDGE-02.cisco.com
@@ -87,7 +87,7 @@ catalyst_center:
                 - name: device_name
                   value: SDA-EDGE-02
                 - name: cts_password
-                  value: Cisco123!
+                  value: C1sco12345
 
       # ─────────────────────── Fabric B ───────────────────────
       - name: SDA-FIAB
@@ -114,4 +114,4 @@ catalyst_center:
                 - name: device_name
                   value: SDA-FIAB
                 - name: cts_password
-                  value: Cisco123!
+                  value: C1sco12345
