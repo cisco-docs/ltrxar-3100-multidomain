@@ -11,7 +11,7 @@
 sdwan:
   edge_device_templates:
     - name: DT-HUB-C8000V-MULTIDOMAIN
-      description: "Multidomain HUB C8000V (SDA fabric border handoff over VPN 30)"
+      description: "Multidomain HUB C8000V - (SDA fabric border handoff over VPN 30)"
       device_model: C8000V
       aaa_template: FT-REMOTE-EDGE-AAA-01
       banner_template: FT-REMOTE-EDGE-BANNER-01
