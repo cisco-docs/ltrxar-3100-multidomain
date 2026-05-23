@@ -64,11 +64,14 @@ deploy_sdwan:
     project: md-as-code/sdwan
     branch: master
     strategy: depend
+  # allow_failure: false
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: always
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: always
+    # - if: '$CI_COMMIT_BRANCH == "master"'
+    #   when: always
+    # - if: '$CI_COMMIT_BRANCH == "main"'
+    #   when: always
 
 deploy_catc:
   stage: deploy-catc
@@ -76,8 +79,11 @@ deploy_catc:
     project: md-as-code/catc
     branch: main
     strategy: depend
+  # allow_failure: false
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: always
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: always
+    # - if: '$CI_COMMIT_BRANCH == "master"'
+    #   when: always
+    # - if: '$CI_COMMIT_BRANCH == "main"'
+    #   when: always
