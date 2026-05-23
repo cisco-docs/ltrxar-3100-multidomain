@@ -1,35 +1,68 @@
 ---
 # LTRXAR-3100 Multi-Domain Orchestrator Pipeline
 #
-# Triggers the per-domain child pipelines in the order:
-#   1. deploy-catc   (CATC fabrics, IP transit, BORDER + FIAB L3 handoffs)
-#   2. deploy-sdwan  (SD-WAN C-EDGE-01 + C-EDGE-02 sites with CTS-aware handoff)
+# This project does not deploy anything itself. It fans out to the parent
+# project pipelines that own SDA (catc) and SDWAN (sdwan) intent via
+# GitLab's multi-project trigger.
 #
-# Order rationale:
-#   - CATC first  → fabrics + handoff configs come up; BGP advertises subnets
-#   - SDWAN next  → cEdge handoff sub-ints + CTS interface mode TRUSTED
+# Stage order (sdwan first, catc second):
+#   1. deploy-sdwan  → triggers md-as-code/sdwan pipeline on master
+#                      cEdge handoff sub-interfaces + EBGP come up first;
+#                      BGP stays Idle/Active toward the still-unconfigured
+#                      SDA side (safe — no blast radius until catc runs).
+#   2. deploy-catc   → triggers md-as-code/catc pipeline on master
+#                      SDA-BORDER and SDA-FIAB get the matching L3 handoff
+#                      VLAN sub-interfaces; BGP Establishes, traffic flows.
 #
-# ACI and ISE are deployed independently via their own submodule pipelines:
-#   - ACI: under the simulator constraint (LEAF101 + LEAF102 only), there
-#     is no separate border-leaf to register; multi-domain/aci/ was removed
-#     and L3Outs are owned entirely by the parent aci/ submodule.
-#   - ISE: SGT/SGACL/matrix/IP-SGT/NAD config lives in the parent ise/
-#     submodule and is applied via that pipeline. Allow ~60–90s after the
-#     ISE apply for CTS PAC provisioning + matrix download to the fabric
-#     edges before validating Beat 3 (the headline drop).
+# strategy: depend  → parent pipeline waits for each child pipeline to
+#                     finish and inherits its exit status. A failure in
+#                     any child fails the orchestrator (preventing the
+#                     next stage from running).
 #
-# strategy: depend  -> parent pipeline waits for each child pipeline to finish
-#                      and inherits its exit status. A failure in any child
-#                      fails the orchestrator (preventing downstream stages).
+# ┌─────────────────────────────────────────────────────────────────────┐
+# │  BEFORE TRIGGERING THIS ORCHESTRATOR                                │
+# │                                                                     │
+# │  The multidomain-specific YAMLs live in the parent repos as         │
+# │  commented-out files. To activate them, uncomment the relevant      │
+# │  blocks in the parent data dirs:                                    │
+# │                                                                     │
+# │    md-as-code/sdwan: data/multidomain_*.nac.yaml                    │
+# │    md-as-code/catc:  data/multidomain_*.nac.yaml                    │
+# │                                                                     │
+# │  To uncomment a file: open it and toggle the commented block in     │
+# │  your editor (Cmd/Ctrl+/), or run:                                  │
+# │    sed -i 's/^# //' <file>                                          │
+# │                                                                     │
+# │  Phased rollout (recommended for first-time deploys):               │
+# │    Phase 1 — uncomment sdwan/data/multidomain_edge_feature_templates│
+# │              and multidomain_edge_device_templates, push, run       │
+# │              orchestrator. SDWAN library lands, no device touch.    │
+# │    Phase 2 — uncomment sdwan/data/multidomain_sites, push, run.     │
+# │              Templates attach to C-EDGE-01/02. BGP in Idle/Active.  │
+# │    Phase 3 — uncomment all catc/data/multidomain_* files, push,     │
+# │              run. SDA handoffs come up, BGP Establishes end-to-end. │
+# └─────────────────────────────────────────────────────────────────────┘
+#
+# Prerequisites:
+#   - md-as-code/sdwan project: Settings → CI/CD → Token Access →
+#     allow md-as-code/multidomain to trigger pipelines
+#   - md-as-code/catc project: same setting
+#   - ISE (md-as-code/ise) must be deployed independently first so that
+#     SGTs (IT_Admin, Servers, Cameras), SGACL matrix, IP-SGT mappings,
+#     and NAD entries are in place. Allow 60–90s after ISE apply for CTS
+#     PAC provisioning and matrix download to the fabric edges.
+#   - ACI is deployed independently via md-as-code/aci (no multidomain
+#     coupling in this design).
 
 stages:
-  - deploy-catc
   - deploy-sdwan
+  - deploy-catc
 
-deploy_catc:
-  stage: deploy-catc
+deploy_sdwan:
+  stage: deploy-sdwan
   trigger:
-    include: catc/.gitlab-ci.yml
+    project: md-as-code/sdwan
+    branch: master
     strategy: depend
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
@@ -37,10 +70,11 @@ deploy_catc:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: always
 
-deploy_sdwan:
-  stage: deploy-sdwan
+deploy_catc:
+  stage: deploy-catc
   trigger:
-    include: sdwan/.gitlab-ci.yml
+    project: md-as-code/catc
+    branch: main
     strategy: depend
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
