@@ -70,10 +70,6 @@ deploy_sdwan:
       when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: always
-    # - if: '$CI_COMMIT_BRANCH == "master"'
-    #   when: always
-    # - if: '$CI_COMMIT_BRANCH == "main"'
-    #   when: always
 
 deploy_catc:
   stage: deploy-catc
@@ -87,7 +83,3 @@ deploy_catc:
       when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: always
-    # - if: '$CI_COMMIT_BRANCH == "master"'
-    #   when: always
-    # - if: '$CI_COMMIT_BRANCH == "main"'
-    #   when: always
