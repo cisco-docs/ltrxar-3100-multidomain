@@ -42,18 +42,6 @@
 # │    Phase 3 — uncomment all catc/data/multidomain_* files, push,     │
 # │              run. SDA handoffs come up, BGP Establishes end-to-end. │
 # └─────────────────────────────────────────────────────────────────────┘
-#
-# Prerequisites:
-#   - md-as-code/sdwan project: Settings → CI/CD → Token Access →
-#     allow md-as-code/multidomain to trigger pipelines
-#   - md-as-code/catc project: same setting
-#   - ISE (md-as-code/ise) must be deployed independently first so that
-#     SGTs (IT_Admin, Servers, Cameras), SGACL matrix, IP-SGT mappings,
-#     and NAD entries are in place. Allow 60–90s after ISE apply for CTS
-#     PAC provisioning and matrix download to the fabric edges.
-#   - ACI is deployed independently via md-as-code/aci (no multidomain
-#     coupling in this design).
-
 stages:
   - deploy-sdwan
   - deploy-catc
