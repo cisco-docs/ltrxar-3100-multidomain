@@ -49,7 +49,7 @@ stages:
 deploy_sdwan:
   stage: deploy-sdwan
   trigger:
-    project: md-as-code/sdwan
+    project: md-as-code/ltrxar-3100-sdwan
     branch: master
     strategy: depend
   # allow_failure: false
@@ -62,7 +62,7 @@ deploy_sdwan:
 deploy_catc:
   stage: deploy-catc
   trigger:
-    project: md-as-code/catc
+    project: md-as-code/ltrxar-3100-catalystcenter
     branch: main
     strategy: depend
   # allow_failure: false
